@@ -22,21 +22,25 @@ module.exports = async (req, res) => {
 
   // 某些地方复制出的链接带 &amp; 而不是 &
   // 饿了么链接是 # 后面做参数，所以截后面操作
-  const query = querystring.parse(
+  let query = querystring.parse(
     String(url)
       .replace(/&amp;/g, '&')
       .split('#')[1]
   );
-  const request = new Request({sn: query.sn});
+  // logger.info(query)
+
   let index = 0;
   let number = -1;
   let type;
-
-  try {
-    query.lucky_number = (await request.lucky(query)).lucky_number;
-  } catch (e) {
-    return response(3, `饿了么红包链接不正确或请求饿了么超时 ${e.message}`);
-  }
+  let request = new Request({sn: query.sn, cookie: cookies[index].value});
+  
+  // 有些ele的sn返回lucky_number为null，此处可注释
+  // try {
+  //   query.lucky_number = (await request.lucky(query)).lucky_number;
+  // } catch (e) {
+  //   return response(3, `饿了么红包链接不正确或请求饿了么超时 ${e.message}`);
+  // }
+  // logger.info(query)
 
   if (!query.sn || !query.lucky_number || isNaN(query.lucky_number)) {
     return response(3, '饿了么红包链接不正确');
@@ -47,7 +51,9 @@ module.exports = async (req, res) => {
       return response(99, '已领取到最佳前一个红包。下一个是最大红包，请手动打开红包链接领取', {type});
     }
 
+    request = new Request({sn: query.sn, cookie: cookies[index].value});
     const cookie = cookies[index++];
+
     if (!cookie) {
       // 传过来的 cookie 不够用
       return response(4, '请求饿了么服务器失败，请重试。如果重试仍然不行，请换一个饿了么链接再来', {type});
@@ -64,9 +70,9 @@ module.exports = async (req, res) => {
       while (true) {
         // 如果这个是最佳红包，换成指定的手机号领取
         const check = number === 1;
-        phone = check ? mobile : MobileList.getOne(mobile);
+        // phone = check ? mobile : MobileList.getOne(mobile);
         data = await request.hongbao({
-          phone,
+          phone: '',
           check,
           openid: sns.openid,
           sign: sns.eleme_key,
@@ -79,7 +85,7 @@ module.exports = async (req, res) => {
         }
 
         // code 10 黑名单
-        MobileList.addBlack(phone);
+        // MobileList.addBlack(phone);
 
         // 是 code 10 并且是你填的那个号码
         if (phone === mobile) {
@@ -115,9 +121,9 @@ module.exports = async (req, res) => {
           }
         }
         // 可用的，并且不是用户填的，存起来用于以后随机
-        if (phone !== mobile && data.ret_code !== 1) {
-          MobileList.addWhite(phone);
-        }
+        // if (phone !== mobile && data.ret_code !== 1) {
+        //   MobileList.addWhite(phone);
+        // }
 
         switch (data.ret_code) {
           case 1:
